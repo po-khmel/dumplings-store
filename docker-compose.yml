@@ -1,0 +1,32 @@
+version: "3.4"
+
+services:
+  dumplings-backend:
+    image: ${CI_REGISTRY_IMAGE}/dumplings-backend:latest
+    container_name: dumplings-backend
+    networks:
+      - dumplings-store
+    healthcheck:
+      test: curl --fail --silent http://{$DEV_HOST}:8081/health
+      interval: 30s
+      timeout: 10s
+      retries: 6
+      start_period: 20s
+    restart: always
+
+  dumplings-frontend:
+    image: ${CI_REGISTRY_IMAGE}/dumplings-frontend:latest
+    container_name: dumplings-frontend
+    environment:
+      - VUE_APP_API_URL=http://{$DEV_HOST}:8081
+    ports:
+      - 8080:80
+    networks:
+      - dumplings-store
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+    restart: always
+
+networks:
+  dumplings-store:
+    driver: bridge

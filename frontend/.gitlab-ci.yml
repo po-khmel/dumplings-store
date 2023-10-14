@@ -1,0 +1,115 @@
+include:
+  - project: "templates/ci"
+    file: "DockerInDockerTemplate.yml"
+  # - template: Security/SAST.gitlab-ci.yml
+
+variables:
+  VERSION: 1.0.$CI_COMMIT_SHORT_SHA
+
+stages:
+  - build
+  # - test
+  - release
+  - deploy
+
+##### build #####
+
+.build-frontend: &build-frontend
+  stage: build
+  image: docker:20.10.12-dind-rootless
+  script:
+    - cd frontend
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - >
+      docker build 
+      --build-arg VUE_APP_API_URL=$VUE_APP_API_URL
+      --tag $CI_REGISTRY_IMAGE/dumplings-frontend:$VERSION
+      .
+    - docker push $CI_REGISTRY_IMAGE/dumplings-frontend:$VERSION
+
+build-frontend-test-deploy:
+  <<: *build-frontend
+  variables:
+    VUE_APP_API_URL: http://$DEV_HOST:8081
+  rules:
+    - if: "$CI_COMMIT_MESSAGE =~ /test-deploy/i"
+
+build-frontend-prod:
+  <<: *build-frontend
+  variables:
+    VUE_APP_API_URL: /api
+
+##### test #####
+
+# sonarqube-frontend-sast:
+#   stage: test
+#   image: sonarsource/sonar-scanner-cli
+#   allow_failure: true
+#   script:
+#     - cd frontend
+#     - >
+#       sonar-scanner
+#       -Dsonar.projectKey=${SONAR_PROJECT_PREFIX}FRONT
+#       -Dsonar.host.url=${SONAR_URL}
+#       -Dsonar.login=${SONAR_FRONT_LOGIN}
+#       -Dsonar.projectName=${SONAR_PROJECT_PREFIX}FRONT
+
+##### release #####
+
+.upload-frontend-release: &upload-frontend-release
+  stage: release
+  image: docker:20.10.12-dind-rootless
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker pull $CI_REGISTRY_IMAGE/dumplings-frontend:$VERSION
+    - docker tag $CI_REGISTRY_IMAGE/dumplings-frontend:$VERSION $CI_REGISTRY_IMAGE/dumplings-frontend$POSTFIX:latest
+    - docker push $CI_REGISTRY_IMAGE/dumplings-frontend$POSTFIX:latest
+
+upload-frontend-release-test:
+  <<: *upload-frontend-release
+  variables:
+    POSTFIX: "-test"
+  rules:
+    - if: "$CI_COMMIT_MESSAGE =~ /test-deploy/i"
+
+upload-frontend-release-prod:
+  <<: *upload-frontend-release
+  variables:
+    POSTFIX: ""
+
+##### test deploy #####
+
+deploy-frontend:
+  stage: deploy
+  image: alpine:latest
+  rules:
+    - if: "$CI_COMMIT_MESSAGE =~ /test-deploy/i"
+  environment:
+    name: Test Deploy
+    url: http://$DEV_HOST
+  before_script:
+    - apk add openssh-client bash
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - echo "$SSH_KNOWN_HOSTS" >> ~/.ssh/known_hosts
+    - chmod 644 ~/.ssh/known_hosts
+  script:
+    - scp ./docker-compose.yml ${DEV_USER}@${DEV_HOST}:docker-compose.yml
+    - >
+      ssh ${DEV_USER}@${DEV_HOST}
+      "export "CI_REGISTRY=${CI_REGISTRY}";
+      export "CI_REGISTRY_IMAGE=${CI_REGISTRY_IMAGE}";
+      export "CI_REGISTRY_USER=${CI_REGISTRY_USER}";
+      export "CI_REGISTRY_PASSWORD=${CI_REGISTRY_PASSWORD}";
+      /bin/bash -s" < ./frontend/test-deploy.sh
+
+##### deploy to prod #####
+
+deploy-frontend-prod:
+  stage: deploy
+  trigger:
+    project: std-017-042/dumplinginfra
+  rules:
+    - if: "$CI_COMMIT_MESSAGE =~ /prod-deploy/i"

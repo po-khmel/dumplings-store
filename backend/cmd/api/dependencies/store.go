@@ -25,7 +25,7 @@ func NewFakeDumplingsStore() (dumplings.Store, error) {
 		{
 			ID:          3,
 			Name:        "Манты",
-			Description: "С мясом молодых бычков",
+			Description: "С тушенкой",
 			Price:       2.75,
 			Image:       "https://storage.yandexcloud.net/std-017-042-dumpling-images/8b50f76f514a4ccaaacdcb832a1b3a2f.jpg",
 		},

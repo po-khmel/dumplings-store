@@ -1,14 +1,14 @@
 include:
   - project: "templates/ci"
     file: "DockerInDockerTemplate.yml"
-  # - template: Security/SAST.gitlab-ci.yml
+  - template: Security/SAST.gitlab-ci.yml
 
 variables:
   VERSION: 1.0.$CI_COMMIT_SHORT_SHA
 
 stages:
   - build
-  # - test
+  - test
   - release
   - deploy
 
@@ -41,18 +41,18 @@ build-frontend-prod:
 
 ##### test #####
 
-# sonarqube-frontend-sast:
-#   stage: test
-#   image: sonarsource/sonar-scanner-cli
-#   allow_failure: true
-#   script:
-#     - cd frontend
-#     - >
-#       sonar-scanner
-#       -Dsonar.projectKey=${SONAR_PROJECT_PREFIX}FRONT
-#       -Dsonar.host.url=${SONAR_URL}
-#       -Dsonar.login=${SONAR_FRONT_LOGIN}
-#       -Dsonar.projectName=${SONAR_PROJECT_PREFIX}FRONT
+sonarqube-frontend-sast:
+  stage: test
+  image: sonarsource/sonar-scanner-cli
+  allow_failure: true
+  script:
+    - cd frontend
+    - >
+      sonar-scanner
+      -Dsonar.projectKey=${SONAR_PROJECT_PREFIX}FRONT
+      -Dsonar.host.url=${SONAR_URL}
+      -Dsonar.login=${SONAR_FRONT_LOGIN}
+      -Dsonar.projectName=${SONAR_PROJECT_PREFIX}FRONT
 
 ##### release #####
 
